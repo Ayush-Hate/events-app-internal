@@ -8,6 +8,16 @@ const express = require('express');
 // https://www.npmjs.com/package/body-parser
 const bodyParser = require('body-parser');
 
+// bring in firestore
+const Firestore = require("@google-cloud/firestore");
+
+// initialize Firestore and set project id from env var
+const firestore = new Firestore(
+    {
+        projectId: process.env.GOOGLE_CLOUD_PROJECT
+    }
+);
+
 // create the server
 const app = express();
 
@@ -36,10 +46,30 @@ app.get('/version', (req, res) => {
     res.json({ version: '1.0.0' });
 });
 
+function getEvents(req, res) {
+    firestore.collection("Events").get()
+        .then((snapshot) => {
+            if (!snapshot.empty) {
+                const ret = { events: []};
+                snapshot.docs.forEach(element => {
+                    ret.events.push(element.data());
+                }, this);
+                console.log(ret);
+                res.json(ret);
+            } else {
+                 res.json(mockEvents);
+            }
+        })
+        .catch((err) => {
+            console.error('Error getting events', err);
+            res.json(mockEvents);
+        });
+};
 
 // mock events endpoint. this would be replaced by a call to a datastore
 // if you went on to develop this as a real application.
 app.get('/events', (req, res) => {
+    getEvents(req, res);
     res.json(mockEvents);
 });
 
@@ -53,6 +83,9 @@ app.post('/event', (req, res) => {
         description: req.body.description,
         id : mockEvents.events.length + 1
      }
+      firestore.collection("Events").add(ev).then(ret => {
+        getEvents(req, res);
+    });
     // add to the mock array
     mockEvents.events.push(ev);
     // return the complete array
@@ -71,5 +104,6 @@ const server = app.listen(PORT, () => {
 
     console.log(`Events app listening at http://${host}:${port}`);
 });
+
 
 module.exports = app;
